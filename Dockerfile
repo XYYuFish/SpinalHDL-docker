@@ -106,11 +106,9 @@ RUN git clone https://github.com/verilator/verilator verilator && \
 FROM base AS build-spinal
 
 ARG MILL_VERSION="0.10.9"
-ENV COURSIER_CACHE=/root/.cache/coursier
 RUN \
   curl -L -o /usr/local/bin/mill https://github.com/lihaoyi/mill/releases/download/$MILL_VERSION/$MILL_VERSION && \
-  chmod +x /usr/local/bin/mill && \
-  JAVA_OPTS="-Xmx2g" mill --version
+  chmod +x /usr/local/bin/mill
 
 FROM base AS run
 
