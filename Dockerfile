@@ -9,11 +9,6 @@ FROM ubuntu:$UBUNTU_VERSION AS base
 
 ENV DEBIAN_FRONTEND=noninteractive LANG=C.UTF-8 LC_ALL=C.UTF-8 PATH="$PATH:/opt/bin"
 
-ARG COURSIER_CACHE_DEFAULT="/sbt/.cache/coursier/v1"
-ARG SBT_OPTS_DEFAULT="-Dsbt.override.build.repos=true -Dsbt.boot.directory=/sbt/.sbt/boot -Dsbt.global.base=/sbt/.sbt -Dsbt.ivy.home=/sbt/.ivy2 -Duser.home=/sbt -Dsbt.global.localcache=/sbt/.sbt/cache"
-ENV COURSIER_CACHE=$COURSIER_CACHE_DEFAULT
-ENV SBT_OPTS=$SBT_OPTS_DEFAULT
-
 ARG DEPS_RUNTIME="ca-certificates gnupg2 openjdk-17-jdk-headless ccache curl g++ gcc git libtcl8.6 python3 python3-pip python3-pip-whl libpython3-dev ssh locales make libgnat-10 iverilog libboost1.74-dev"
 RUN apt-get update && \
     apt-get install -y --no-install-recommends $DEPS_RUNTIME
@@ -33,9 +28,14 @@ RUN git clone https://github.com/YosysHQ/yosys.git yosys && \
     cd .. && \
     rm -Rf yosys
 
-ARG SOLVERS_PATH="snapshot-20221212/ubuntu-22.04-bin.zip"
+ARG TARGETARCH
 RUN mkdir solver && cd solver && \
-    curl -o solvers.zip -sL "https://github.com/GaloisInc/what4-solvers/releases/download/${SOLVERS_PATH}" && \
+    if [ "$TARGETARCH" = "arm64" ]; then \
+        SOLVERS_ZIP="ubuntu-22.04-ARM64-bin.zip"; \
+    else \
+        SOLVERS_ZIP="ubuntu-22.04-X64-bin.zip"; \
+    fi && \
+    curl -o solvers.zip -sL "https://github.com/GaloisInc/what4-solvers/releases/download/snapshot-20260119/${SOLVERS_ZIP}" && \
     unzip solvers.zip && \
     rm solvers.zip && \
     chmod +x * && \
@@ -105,15 +105,6 @@ RUN git clone https://github.com/verilator/verilator verilator && \
 
 FROM base AS build-spinal
 
-# # Add repos and install sbt 
-# RUN curl -sL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x2EE0EA64E40A89B84B2DF73499E82A75642AC823" \
-#         | gpg2 --dearmour -o /usr/share/keyrings/sdb-keyring.gpg \
-#     && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/sdb-keyring.gpg] https://repo.scala-sbt.org/scalasbt/debian all main" \
-#         | tee /etc/apt/sources.list.d/sbt.list \
-#     && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/sdb-keyring.gpg] https://repo.scala-sbt.org/scalasbt/debian /" \
-#         | tee /etc/apt/sources.list.d/sbt_old.list \
-#     && apt update && apt install sbt
-
 ARG MILL_VERSION="0.10.9"
 RUN \
   curl -L -o /usr/local/bin/mill https://github.com/lihaoyi/mill/releases/download/$MILL_VERSION/$MILL_VERSION && \
@@ -127,19 +118,9 @@ FROM base AS run
 RUN pip install cocotb==1.8.1 cocotb-test click && \
     pip cache purge
 
-# Add repos and install sbt 
-RUN curl -sL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x2EE0EA64E40A89B84B2DF73499E82A75642AC823" \
-        | gpg2 --dearmour -o /usr/share/keyrings/sdb-keyring.gpg \
-    && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/sdb-keyring.gpg] https://repo.scala-sbt.org/scalasbt/debian all main" \
-        | tee /etc/apt/sources.list.d/sbt.list \
-    && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/sdb-keyring.gpg] https://repo.scala-sbt.org/scalasbt/debian /" \
-        | tee /etc/apt/sources.list.d/sbt_old.list \
-    && apt update && apt install sbt && apt clean && rm -rf /var/lib/apt/lists/* /var/cache/debconf/* /var/log/* /tmp/*
-
 RUN git config --system --add safe.directory '*'
 
 COPY --from=build-symbiyosys /opt /opt
 COPY --from=build-verilator /opt /opt
 COPY --from=build-spinal /opt /opt
 COPY --from=build-spinal /usr/local/bin/mill /opt/bin/mill
-# COPY --from=build-spinal /sbt /sbt
