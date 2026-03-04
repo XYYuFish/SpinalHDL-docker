@@ -5,6 +5,7 @@
 #            Leuenberger Niklaus <https://github.com/NikLeberg>
 
 ARG UBUNTU_VERSION=22.04
+ARG MILL_VERSION="1.1.0"
 FROM ubuntu:$UBUNTU_VERSION AS base
 
 ENV DEBIAN_FRONTEND=noninteractive LANG=C.UTF-8 LC_ALL=C.UTF-8 PATH="$PATH:/opt/bin"
@@ -93,35 +94,26 @@ RUN git clone https://github.com/verilator/verilator verilator && \
 
 FROM base AS build-spinal
 
+ARG MILL_VERSION
 ENV PREFIX=/opt
-ARG MILL_VERSION="0.11.11"
-ARG SBT_VERSION="1.9.9"
 
 ENV COURSIER_CACHE=$PREFIX/cache/coursier
 ENV MILL_CACHE_PATH=$PREFIX/cache/mill
-ENV SBT_OPTS="-Dsbt.global.base=$PREFIX/cache/sbt/global -Dsbt.boot.directory=$PREFIX/cache/sbt/boot -Dsbt.ivy.home=$PREFIX/cache/ivy2 -Dsbt.rootdir=true"
 
 RUN mkdir -p $PREFIX/bin $PREFIX/cache
 
 # Install Mill
-RUN curl -L -o /usr/local/bin/mill https://github.com/lihaoyi/mill/releases/download/$MILL_VERSION/$MILL_VERSION && \
-    chmod +x /usr/local/bin/mill && \
-    mill --version
-
-# Install SBT
-RUN curl -L -o sbt-$SBT_VERSION.tgz https://github.com/sbt/sbt/releases/download/v$SBT_VERSION/sbt-$SBT_VERSION.tgz && \
-    tar -xzf sbt-$SBT_VERSION.tgz -C $PREFIX --strip-components=1 && \
-    rm sbt-$SBT_VERSION.tgz && \
-    $PREFIX/bin/sbt sbtVersion
+RUN curl -L -o /opt/bin/mill "https://repo1.maven.org/maven2/com/lihaoyi/mill-dist/$MILL_VERSION/mill-dist-$MILL_VERSION-mill.sh" && \
+    chmod +x /opt/bin/mill && \
+    /opt/bin/mill --version
 
 FROM base AS run
 
-ARG MILL_VERSION="0.11.11"
+ARG MILL_VERSION
 ENV MILL_VERSION=$MILL_VERSION
 ENV PREFIX=/opt
 ENV COURSIER_CACHE=$PREFIX/cache/coursier
 ENV MILL_CACHE_PATH=$PREFIX/cache/mill
-ENV SBT_OPTS="-Dsbt.global.base=$PREFIX/cache/sbt/global -Dsbt.boot.directory=$PREFIX/cache/sbt/boot -Dsbt.ivy.home=$PREFIX/cache/ivy2 -Dsbt.rootdir=true"
 ENV PATH="$PATH:$PREFIX/bin"
 
 RUN python3 -m pip install --no-cache-dir cocotb==2.0.1 cocotb-test click
@@ -131,4 +123,3 @@ RUN git config --system --add safe.directory '*'
 COPY --from=build-symbiyosys /opt /opt
 COPY --from=build-verilator /opt /opt
 COPY --from=build-spinal /opt /opt
-COPY --from=build-spinal /usr/local/bin/mill /usr/local/bin/mill
