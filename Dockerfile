@@ -29,7 +29,7 @@ ARG YOSYS_VERSION="yosys-0.41"
 RUN git clone https://github.com/YosysHQ/yosys.git yosys && \
     cd yosys && \
     git checkout $YOSYS_VERSION && \
-    make PREFIX=$PREFIX -j4 && \
+    make PREFIX=$PREFIX -j$(nproc) && \
     make PREFIX=$PREFIX install && \
     cd .. && \
     rm -Rf yosys
@@ -59,7 +59,7 @@ RUN curl -L "https://github.com/Boolector/boolector/archive/refs/tags/$BOOLECTOR
     && ./contrib/setup-lingeling.sh \
     && ./contrib/setup-btor2tools.sh \
     && ./configure.sh --prefix $PREFIX \
-    && make PREFIX=$PREFIX -C build -j4 \
+    && make PREFIX=$PREFIX -C build -j$(nproc) \
     && make PREFIX=$PREFIX -C build install \
     && cd .. \
     && rm -Rf boolector-$BOOLECTOR_VERSION
@@ -68,7 +68,7 @@ ARG SYMBIYOSYS_VERSION="yosys-0.41"
 RUN git clone https://github.com/YosysHQ/sby.git SymbiYosys && \
     cd SymbiYosys && \
     git checkout $SYMBIYOSYS_VERSION && \
-    make PREFIX=$PREFIX -j4 install && \
+    make PREFIX=$PREFIX -j$(nproc) install && \
     cd .. && \
     rm -Rf SymbiYosys
 
@@ -87,7 +87,7 @@ RUN git clone https://github.com/verilator/verilator verilator && \
     git checkout $VERILATOR_VERSION && \
     autoconf && \
     ./configure --prefix $PREFIX && \
-    make PREFIX=$PREFIX -j4 && \
+    make PREFIX=$PREFIX -j$(nproc) && \
     make PREFIX=$PREFIX install && \
     cd ../.. && \
     rm -Rf verilator
@@ -116,7 +116,13 @@ ENV COURSIER_CACHE=$PREFIX/cache/coursier
 ENV MILL_CACHE_PATH=$PREFIX/cache/mill
 ENV PATH="$PATH:$PREFIX/bin"
 
-RUN python3 -m pip install --no-cache-dir cocotb==2.0.1 cocotb-test click
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+ENV UV_SYSTEM_PYTHON=1 \
+    UV_COMPILE_BYTECODE=1
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install cocotb==2.0.1 cocotb-test pytest pytest-xdist
 
 RUN git config --system --add safe.directory '*'
 
